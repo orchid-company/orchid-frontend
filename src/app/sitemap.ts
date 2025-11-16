@@ -6,14 +6,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     {
       url: `${frontendUrl}/`,
-      lastmod: new Date().toISOString(),
-      changefreq: "never",
+      lastModified: new Date().toISOString(),
+      changeFrequency: "never",
       priority: 1,
     },
     {
       url: `${frontendUrl}/about-us`,
-      lastmod: new Date().toISOString(),
-      changefreq: "never",
+      lastModified: new Date().toISOString(),
+      changeFrequency: "never",
       priority: 0.9,
     },
     // {
@@ -72,8 +72,8 @@ const generateSitemapObjects = async () => {
     const categorySitemap = categories.map((category: any) => {
       return {
         url: `${frontendUrl}/category/${category.slug}`,
-        lastmod: new Date().toISOString(),
-        changefreq: "daily",
+        lastModified: new Date().toISOString(),
+        changeFrequency: "daily",
         priority: 0.8,
       };
     });
@@ -81,8 +81,8 @@ const generateSitemapObjects = async () => {
     const serviceSitemap = services.map((service: any) => {
       return {
         url: `${frontendUrl}/service/${service.slug}`,
-        lastmod: new Date().toISOString(),
-        changefreq: "daily",
+        lastModified: new Date().toISOString(),
+        changeFrequency: "daily",
         priority: 0.8,
       };
     });
