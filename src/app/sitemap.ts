@@ -1,5 +1,6 @@
 import { MetadataRoute } from "next";
 import { backendUrl, frontendUrl } from "@/utils/axios";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
@@ -45,15 +46,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
 const generateSitemapObjects = async () => {
   try {
-    const categoryResponse = await fetch(`${backendUrl}/category/getAllCategories`);
-    const categoryData = await categoryResponse.json();
-    const categories = categoryData.categories;
+    const { data: categoryData, response: categoryResponse } =
+      await safeFetchJson<{ categories?: Array<{ slug: string }> }>(
+        `${backendUrl}/category/getAllCategories`,
+        {
+          next: { revalidate: 60 * 60 },
+        }
+      );
 
-    const serviceResponse = await fetch(`${backendUrl}/service/getAllServicesId`);
-    const serviceData = await serviceResponse.json();
-    const services = serviceData.services;
+    const { data: serviceData, response: serviceResponse } = await safeFetchJson<{
+      services?: Array<{ slug: string }>;
+    }>(`${backendUrl}/service/getAllServicesId`, {
+      next: { revalidate: 60 * 60 },
+    });
 
-    // console.log(categories, services);
+    if (!categoryResponse.ok || !serviceResponse.ok) {
+      console.warn(
+        `[sitemap] Upstream responded with errors. categoryStatus=${categoryResponse.status} serviceStatus=${serviceResponse.status}`
+      );
+    }
+
+    const categories = categoryData?.categories ?? [];
+    const services = serviceData?.services ?? [];
 
     const categorySitemap = categories.map((category: any) => {
       return {

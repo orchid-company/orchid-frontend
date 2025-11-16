@@ -2,65 +2,97 @@ import ImageGallery from "@/components/Service/ImageGallery";
 import MoreServices from "@/components/Service/MoreServices";
 import ServiceDetails from "@/components/Service/ServiceDetails";
 import Image from "next/image";
-import { Metadata, ResolvingMetadata } from "next";
+import { Metadata } from "next";
 import { backendUrl } from "@/utils/axios";
 import Reviews from "@/components/Service/Reviews";
 import Faqs from "@/components/Common/Faqs";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export async function generateStaticParams() {
-  const data = await fetch(`${backendUrl}/service/getAllServicesId`).then(
-    (res) => res.json()
-  );
+  try {
+    const { data, response } = await safeFetchJson<{
+      services?: Array<{ slug: string }>;
+    }>(`${backendUrl}/service/getAllServicesId`, {
+      next: { revalidate: 60 * 60 },
+    });
 
-  return data?.services?.map((service: any) => ({
-    id: service?.slug,
-  }));
+    if (!response.ok || !data?.services?.length) {
+      console.warn(
+        `[service/[id]/generateStaticParams] Falling back to empty list. status=${response.status}`
+      );
+      return [];
+    }
+
+    return data.services
+      .filter((service) => service?.slug)
+      .map((service) => ({
+        id: service.slug,
+      }));
+  } catch (error) {
+    console.error(
+      "[service/[id]/generateStaticParams] Failed to fetch service slugs",
+      error
+    );
+    return [];
+  }
 }
 
 async function getSingleService(id: string) {
-  const res = await fetch(`${backendUrl}/service/getServiceBySlug/${id}`);
+  const { data, response } = await safeFetchJson<{ service?: any }>(
+    `${backendUrl}/service/getServiceBySlug/${id}`,
+    {
+      next: { revalidate: 60 * 10 },
+    }
+  );
 
-  if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
+  if (!data?.service) {
+    console.error(
+      `[getSingleService] Missing service for slug=${id}. status=${response.status}`
+    );
     throw new Error("Failed to fetch data");
   }
-  const data = await res.json();
 
   return data.service;
 }
 
-export async function generateMetadata(
-  { params }: { params: { id: string } },
-  parent: ResolvingMetadata
-): Promise<Metadata> {
-  // read route params
-  const id = params.id;
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  try {
+    const { data } = await safeFetchJson<{ service?: any }>(
+      `${backendUrl}/service/getServiceBySlug/${params.id}`,
+      {
+        next: { revalidate: 60 * 10 },
+      }
+    );
+    const service = data?.service;
 
-  // fetch data
-  const res = await fetch(
-    `${backendUrl}/service/getServiceBySlug/${id}`
-  );
-  if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
-    throw new Error("Failed to fetch data");
+    if (!service) {
+      throw new Error("Service not found");
+    }
+
+    return {
+      title: service?.title ?? "Orchid Services",
+      description:
+        service?.metaDescription ??
+        "Discover detailed information about Orchid services.",
+    };
+  } catch (error) {
+    console.error(
+      "[service/[id]/generateMetadata] Failed to build metadata",
+      error
+    );
+    return {
+      title: "Orchid Services",
+      description: "Discover detailed information about Orchid services.",
+    };
   }
-  const data = await res.json();
-  const service = data.service;
-
-  return {
-    title: service?.title,
-    description: service?.metaDescription,
-    // metadataBase: new URL(''),
-    // alternates:{
-    //   canonical:"/"
-    // }
-  };
 }
 
 export default async function Page({ params }: { params: { id: string } }) {
   const service = await getSingleService(params.id);
-
-  console.log(service);
 
   return (
     <div className="w-full flex flex-col gap-16 md:py-8 ">

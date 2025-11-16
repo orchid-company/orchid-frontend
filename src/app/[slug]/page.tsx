@@ -5,39 +5,25 @@ import Choose from "@/components/Home/Choose";
 import parse from "html-react-parser";
 import Services from "@/components/Category/Services";
 import Faqs from "@/components/Common/Faqs";
-
-const jsonResponseOrNull = async <T,>(res: Response): Promise<T | null> => {
-  if (!res.ok) {
-    return null;
-  }
-  const contentType = res.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) {
-    return null;
-  }
-  try {
-    return (await res.json()) as T;
-  } catch (error) {
-    console.error("Failed to parse JSON response", error);
-    return null;
-  }
-};
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export async function generateStaticParams() {
   try {
-    const res = await fetch(
+    const { data, response } = await safeFetchJson<{
+      subCategories?: Array<{ slug: string }>;
+    }>(
       `${backendUrl}/subCategory/getAllSubCategoriesSlug`,
       {
         next: { revalidate: 60 * 60 },
       }
     );
-    const data = await jsonResponseOrNull<{
-      subCategories?: Array<{ slug: string }>;
-    }>(res);
 
     if (!data?.subCategories?.length) {
       console.warn(
         "[generateStaticParams] Falling back to empty slug list. " +
-          `status=${res.status} content-type=${res.headers.get("content-type")}`
+          `status=${response.status} content-type=${response.headers.get(
+            "content-type"
+          )}`
       );
       return [];
     }
@@ -56,12 +42,17 @@ export async function generateStaticParams() {
 
 async function getSingleSubCategory(slug: string) {
   const url = `${backendUrl}/subCategory/getSubCategoryBySlug/${slug}`;
-  const res = await fetch(url, {
-    next: { revalidate: 60 * 10 },
-  });
+  const { data, response } = await safeFetchJson<{ subCategory?: any }>(
+    url,
+    {
+      next: { revalidate: 60 * 10 },
+    }
+  );
 
-  const data = await jsonResponseOrNull<{ subCategory?: any }>(res);
   if (!data?.subCategory) {
+    console.error(
+      `[getSingleSubCategory] Missing subCategory for slug=${slug}. status=${response.status}`
+    );
     throw new Error(`Failed to fetch sub category for slug: ${slug}`);
   }
   return data.subCategory;
@@ -75,13 +66,12 @@ export async function generateMetadata({
   const slug = params.slug;
 
   try {
-    const res = await fetch(
+    const { data } = await safeFetchJson<{ subCategory?: any }>(
       `${backendUrl}/subCategory/getSubCategoryBySlug/${slug}`,
       {
         next: { revalidate: 60 * 10 },
       }
     );
-    const data = await jsonResponseOrNull<{ subCategory?: any }>(res);
     const service = data?.subCategory;
 
     if (!service) {
@@ -107,9 +97,7 @@ export async function generateMetadata({
 }
 
 export default async function Page({ params }: { params: { slug: string } }) {
-  console.log(params.slug);
   const category = await getSingleSubCategory(params.slug);
-  console.log(category);
 
   return (
     <>

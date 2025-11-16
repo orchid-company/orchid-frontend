@@ -2,58 +2,91 @@ import Categories from "@/components/Category/Categories";
 import Services from "@/components/Category/Services";
 import Image from "next/image";
 import { backendUrl } from "@/utils/axios";
-import { Metadata, ResolvingMetadata } from "next";
+import { Metadata } from "next";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export async function generateStaticParams() {
-  const data = await fetch(`${backendUrl}/category/getAllCategories`).then(
-    (res) => res.json()
-  );
+  try {
+    const { data, response } = await safeFetchJson<{
+      categories?: Array<{ slug: string }>;
+    }>(`${backendUrl}/category/getAllCategories`, {
+      next: { revalidate: 60 * 60 },
+    });
 
-  return data?.categories?.map((category: any) => ({
-    id: category.slug,
-  }));
+    if (!data?.categories?.length) {
+      console.warn(
+        "[category/[id]/generateStaticParams] Falling back to empty list. " +
+          `status=${response.status} content-type=${response.headers.get(
+            "content-type"
+          )}`
+      );
+      return [];
+    }
+
+    return data.categories
+      .filter((category) => category?.slug)
+      .map((category) => ({ id: category.slug }));
+  } catch (error) {
+    console.error(
+      "[category/[id]/generateStaticParams] Failed to fetch category slugs",
+      error
+    );
+    return [];
+  }
 }
 
 async function getSingleCategory(id: string) {
   const url = `${backendUrl}/category/getCategoryBySlug/${id}`;
-  const res = await fetch(url);
+  const { data, response } = await safeFetchJson<{ category?: any }>(url, {
+    next: { revalidate: 60 * 10 },
+  });
 
-  if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
-    throw new Error("Failed to fetch data");
+  if (!data?.category) {
+    console.error(
+      `[getSingleCategory] Missing category for slug=${id}. status=${response.status}`
+    );
+    throw new Error(`Failed to fetch category for slug: ${id}`);
   }
-  const data = await res.json();
 
   return data.category;
 }
 
-export async function generateMetadata(
-  { params }: { params: { id: string } },
-  parent: ResolvingMetadata
-): Promise<Metadata> {
-  // read route params
-  const id = params.id;
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  const slug = params.id;
 
-  // fetch data
-  const url = `${backendUrl}/category/getCategoryBySlug/${id}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
-    throw new Error("Failed to fetch data");
+  try {
+    const { data } = await safeFetchJson<{ category?: any }>(
+      `${backendUrl}/category/getCategoryBySlug/${slug}`,
+      {
+        next: { revalidate: 60 * 10 },
+      }
+    );
+    const category = data?.category;
+
+    if (!category) {
+      throw new Error("Category not found");
+    }
+
+    return {
+      title: category?.title ?? "Orchid Services",
+      description:
+        category?.metaDescription ??
+        "Discover Orchid’s curated services tailored to your needs.",
+    };
+  } catch (error) {
+    console.error(
+      "[category/[id]/generateMetadata] Failed to build metadata",
+      error
+    );
+    return {
+      title: "Orchid Services",
+      description: "Discover Orchid’s curated services tailored to your needs.",
+    };
   }
-  const data = await res.json();
-  const category = data.category;
-  // optionally access and extend (rather than replace) parent metadata
-  const previousImages = (await parent).openGraph?.images || [];
-
-  return {
-    title: category.title,
-    description: category.metaDescription,
-    // metadataBase: new URL(''),
-    // alternates:{
-    //   canonical:"/"
-    // }
-  };
 }
 
 export default async function Page({ params }: { params: { id: string } }) {

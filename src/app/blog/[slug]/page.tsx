@@ -4,6 +4,7 @@ import { Metadata } from "next";
 import { backendUrl } from "@/utils/axios";
 import moment from "moment";
 import { notFound } from "next/navigation";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 type BlogResponse = {
   blog: {
@@ -23,38 +24,52 @@ type BlogResponse = {
 };
 
 const fetchBlog = async (slug: string) => {
-  const res = await fetch(`${backendUrl}/blog/getBlogBySlug/${slug}`, {
-    next: {
-      revalidate: 120,
-    },
-  });
+  const { data, response } = await safeFetchJson<BlogResponse>(
+    `${backendUrl}/blog/getBlogBySlug/${slug}`,
+    {
+      next: {
+        revalidate: 120,
+      },
+    }
+  );
 
-  if (res.status === 404) {
+  if (response.status === 404) {
     return null;
   }
 
-  if (!res.ok) {
+  if (!response.ok || !data?.blog) {
+    console.error(
+      `[fetchBlog] Failed to fetch blog for slug=${slug}. status=${response.status}`
+    );
     throw new Error("Failed to fetch blog");
   }
 
-  const data: BlogResponse = await res.json();
   return data.blog;
 };
 
 export async function generateStaticParams() {
   try {
-    const res = await fetch(`${backendUrl}/blog/getBlogs?limit=1000`, {
+    const { data, response } = await safeFetchJson<{
+      blogs?: Array<{ slug: string }>;
+    }>(`${backendUrl}/blog/getBlogs?limit=1000`, {
       next: { revalidate: 300 },
     });
-    if (!res.ok) {
+    if (!response.ok || !data?.blogs?.length) {
+      console.warn(
+        `[blog/[slug]/generateStaticParams] Falling back to empty list. status=${response.status}`
+      );
       return [];
     }
-    const data = await res.json();
-    return (data?.blogs || []).map((blog: any) => ({
-      slug: blog?.slug,
-    }));
+    return data.blogs
+      .filter((blog) => blog?.slug)
+      .map((blog) => ({
+        slug: blog.slug,
+      }));
   } catch (error) {
-    console.log(error);
+    console.error(
+      "[blog/[slug]/generateStaticParams] Failed to fetch blog slugs",
+      error
+    );
     return [];
   }
 }
@@ -81,7 +96,7 @@ export async function generateMetadata({
       },
     };
   } catch (error) {
-    console.log(error);
+    console.error("[blog/[slug]/generateMetadata] Failed to build metadata", error);
     return {
       title: "Blog",
     };
