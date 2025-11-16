@@ -1,7 +1,45 @@
 import Image from "next/image";
-import React from "react";
+import Link from "next/link";
+import { backendUrl } from "@/utils/axios";
 
-const RecentBlogs = () => {
+type BlogPreview = {
+  _id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  coverImage: string;
+  author?: string;
+  publishedAt?: string;
+};
+
+const formatDate = (date?: string) => {
+  if (!date) return "Coming soon";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date));
+};
+
+const fetchRecentBlogs = async (): Promise<BlogPreview[]> => {
+  try {
+    const res = await fetch(`${backendUrl}/blog/getBlogs?limit=3`, {
+      next: { revalidate: 180 },
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data?.blogs || [];
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
+const RecentBlogs = async () => {
+  const blogs = await fetchRecentBlogs();
+
   return (
     <div className="w-full px-8 sm:px-12 md:px-20 lg:px-32 py-16 flex flex-col gap-12">
       <div className="w-full flex md:flex-row flex-col justify-between gap-2">
@@ -13,86 +51,56 @@ const RecentBlogs = () => {
             Recent Blogs
           </h4>
         </div>
-        <p className="text-gray-400 inter break-words text-lg font-light md:text-start text-center w-2/3 ">
-        Stay updated with our latest insights and stories. <br /> Our blog section brings you a fresh perspective on everyday challenges, offering tips, industry news, and in-depth articles to enrich your knowledge.
+        <p className="text-gray-400 inter break-words text-lg font-light md:text-start text-center md:w-1/2">
+          Stay updated with our latest insights and stories. Our blog section
+          brings you a fresh perspective on everyday challenges, offering tips,
+          industry news, and in-depth articles to enrich your knowledge.
         </p>
       </div>
       <div className="grid md:grid-cols-3 gap-6">
-        <div className="hover-effect bg-[#f8f5ff] border border-[#dddddd]  w-full flex flex-col cursor-pointer   ">
-          <Image
-            src="/assets/images/blog/1.jpg"
-            className="rounded-[35px]"
-            alt="blog-1"
-            width={600}
-            height={600}
-          />
-          <div className="flex flex-col gap-4 w-full py-8 px-6">
-            <div className="flex justify-between w-full items-center ">
-              <p className="text-blue spartan text-lg">Latest</p>
-              <p className="text-blue spartan text-lg">By | Admin</p>
-            </div>
-            <hr className="border border-[#ddd]" />
-            <div className="flex flex-col gap-4">
-              <h6 className="font-semibold inter text-xl text-blue ">
-                Helping Companies in their Green.
-              </h6>
-              <p className="text-gray-400 inter text-md tracking-wide">
-                Lorem ipsum dolor sit amet consectetur, adipisicing elit. Autem
-                numquam qui officia labore dolorem.
-              </p>
-            </div>
+        {blogs.length === 0 ? (
+          <div className="col-span-full flex justify-center text-gray-500 inter">
+            No blogs published yet. Check back soon!
           </div>
-        </div>
-        <div className="hover-effect bg-[#f8f5ff] border border-[#dddddd]  w-full flex flex-col cursor-pointer   ">
-          <Image
-            src="/assets/images/blog/2.jpg"
-            className="rounded-[35px]"
-            alt="blog-1"
-            width={600}
-            height={600}
-          />
-          <div className="flex flex-col gap-4 w-full py-8 px-6">
-            <div className="flex justify-between w-full items-center ">
-              <p className="text-blue spartan text-lg">Latest</p>
-              <p className="text-blue spartan text-lg">By | Admin</p>
-            </div>
-            <hr className="border border-[#ddd]" />
-            <div className="flex flex-col gap-4">
-              <h6 className="font-semibold inter text-xl text-blue ">
-                Helping Companies in their Green.
-              </h6>
-              <p className="text-gray-400 inter text-md tracking-wide">
-                Lorem ipsum dolor sit amet consectetur, adipisicing elit. Autem
-                numquam qui officia labore dolorem.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="hover-effect bg-[#f8f5ff] border border-[#dddddd] cursor-pointer  w-full flex flex-col   ">
-          <Image
-            src="/assets/images/blog/3.jpg"
-            className="rounded-[35px]"
-            alt="blog-1"
-            width={600}
-            height={600}
-          />
-          <div className="flex flex-col gap-4 w-full py-8 px-6">
-            <div className="flex justify-between w-full items-center ">
-              <p className="text-blue spartan text-lg">Latest</p>
-              <p className="text-blue spartan text-lg">By | Admin</p>
-            </div>
-            <hr className="border border-[#ddd]" />
-            <div className="flex flex-col gap-4">
-              <h6 className="font-semibold inter text-xl text-blue ">
-                Helping Companies in their Green.
-              </h6>
-              <p className="text-gray-400 inter text-md tracking-wide">
-                Lorem ipsum dolor sit amet consectetur, adipisicing elit. Autem
-                numquam qui officia labore dolorem.
-              </p>
-            </div>
-          </div>
-        </div>
+        ) : (
+          blogs.map((blog) => (
+            <Link
+              key={blog._id}
+              href={`/blog/${blog.slug}`}
+              className="hover-effect bg-[#f8f5ff] border border-[#dddddd] w-full flex flex-col rounded-[35px] overflow-hidden transition-shadow hover:shadow-xl"
+            >
+              <div className="relative w-full h-56">
+                <Image
+                  src={blog.coverImage}
+                  alt={blog.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  priority
+                />
+              </div>
+              <div className="flex flex-col gap-4 w-full py-8 px-6">
+                <div className="flex justify-between w-full items-center ">
+                  <p className="text-blue spartan text-lg">
+                    {formatDate(blog.publishedAt)}
+                  </p>
+                  <p className="text-blue spartan text-lg">
+                    By | {blog.author || "Admin"}
+                  </p>
+                </div>
+                <hr className="border border-[#ddd]" />
+                <div className="flex flex-col gap-4">
+                  <h6 className="font-semibold inter text-xl text-blue line-clamp-2">
+                    {blog.title}
+                  </h6>
+                  <p className="text-gray-500 inter text-md tracking-wide line-clamp-3">
+                    {blog.excerpt}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))
+        )}
       </div>
     </div>
   );
