@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { backendUrl } from "@/utils/axios";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 type BlogPreview = {
   _id: string;
@@ -23,16 +24,22 @@ const formatDate = (date?: string) => {
 
 const fetchRecentBlogs = async (): Promise<BlogPreview[]> => {
   try {
-    const res = await fetch(`${backendUrl}/blog/getBlogs?limit=3`, {
+    const { data, response } = await safeFetchJson<{
+      blogs?: BlogPreview[];
+    }>(`${backendUrl}/blog/getBlogs?limit=3`, {
       next: { revalidate: 180 },
     });
-    if (!res.ok) {
+
+    if (!response.ok || !data?.blogs) {
+      console.warn(
+        `[RecentBlogs] No blogs returned. status=${response.status}`
+      );
       return [];
     }
-    const data = await res.json();
-    return data?.blogs || [];
+
+    return data.blogs;
   } catch (error) {
-    console.log(error);
+    console.error("[RecentBlogs] Failed to fetch blogs", error);
     return [];
   }
 };
