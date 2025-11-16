@@ -1,65 +1,109 @@
 import Image from "next/image";
 import { backendUrl } from "@/utils/axios";
-import { Metadata, ResolvingMetadata } from "next";
-import Link from "next/link";
+import { Metadata } from "next";
 import Choose from "@/components/Home/Choose";
 import parse from "html-react-parser";
 import Services from "@/components/Category/Services";
 import Faqs from "@/components/Common/Faqs";
 
+const jsonResponseOrNull = async <T,>(res: Response): Promise<T | null> => {
+  if (!res.ok) {
+    return null;
+  }
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return null;
+  }
+  try {
+    return (await res.json()) as T;
+  } catch (error) {
+    console.error("Failed to parse JSON response", error);
+    return null;
+  }
+};
 
 export async function generateStaticParams() {
-  console.log(`${backendUrl}/subCategory/getAllSubCategoriesSlug`);
+  try {
+    const res = await fetch(
+      `${backendUrl}/subCategory/getAllSubCategoriesSlug`,
+      {
+        next: { revalidate: 60 * 60 },
+      }
+    );
+    const data = await jsonResponseOrNull<{
+      subCategories?: Array<{ slug: string }>;
+    }>(res);
 
-  const data = await fetch(
-    `${backendUrl}/subCategory/getAllSubCategoriesSlug`
-  ).then((res) => res.json());
+    if (!data?.subCategories?.length) {
+      console.warn(
+        "[generateStaticParams] Falling back to empty slug list. " +
+          `status=${res.status} content-type=${res.headers.get("content-type")}`
+      );
+      return [];
+    }
 
-  return data?.subCategories?.map((service: any) => ({
-    slug: service?.slug,
-  }));
+    return data.subCategories
+      .filter((service) => service?.slug)
+      .map((service) => ({ slug: service.slug }));
+  } catch (error) {
+    console.error(
+      "[generateStaticParams] Failed to fetch sub-category slugs",
+      error
+    );
+    return [];
+  }
 }
 
 async function getSingleSubCategory(slug: string) {
-  const res = await fetch(
-    `${backendUrl}/subCategory/getSubCategoryBySlug/${slug}`
-  );
+  const url = `${backendUrl}/subCategory/getSubCategoryBySlug/${slug}`;
+  const res = await fetch(url, {
+    next: { revalidate: 60 * 10 },
+  });
 
-  if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
-    throw new Error("Failed to fetch data");
+  const data = await jsonResponseOrNull<{ subCategory?: any }>(res);
+  if (!data?.subCategory) {
+    throw new Error(`Failed to fetch sub category for slug: ${slug}`);
   }
-  const data = await res.json();
-
   return data.subCategory;
 }
 
-export async function generateMetadata(
-  { params }: { params: { slug: string } },
-  parent: ResolvingMetadata
-): Promise<Metadata> {
-  // read route params
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
   const slug = params.slug;
 
-  // fetch data
-  const res = await fetch(
-    `${backendUrl}/subCategory/getSubCategoryBySlug/${slug}`
-  );
-  if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
-    throw new Error("Failed to fetch data");
-  }
-  const data = await res.json();
-  const service = data.subCategory;
+  try {
+    const res = await fetch(
+      `${backendUrl}/subCategory/getSubCategoryBySlug/${slug}`,
+      {
+        next: { revalidate: 60 * 10 },
+      }
+    );
+    const data = await jsonResponseOrNull<{ subCategory?: any }>(res);
+    const service = data?.subCategory;
 
-  return {
-    title: service?.title,
-    description: service?.metaDescription,
-    // metadataBase: new URL(''),
-    // alternates:{
-    //   canonical:"/"
-    // }
-  };
+    if (!service) {
+      throw new Error("Service not found");
+    }
+
+    return {
+      title: service?.title ?? "Orchid Services",
+      description:
+        service?.metaDescription ??
+        "Explore Orchid services tailored to your needs.",
+    };
+  } catch (error) {
+    console.error(
+      "[generateMetadata] Failed to build metadata for sub category",
+      error
+    );
+    return {
+      title: "Orchid Services",
+      description: "Explore Orchid services tailored to your needs.",
+    };
+  }
 }
 
 export default async function Page({ params }: { params: { slug: string } }) {
