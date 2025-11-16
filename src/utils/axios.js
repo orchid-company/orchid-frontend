@@ -5,9 +5,6 @@ export const backendUrl = "https://api.orchidcompany.com/api";
 // export const backendUrl = "";
 export const frontendUrl = "https://orchidcompany.com";
 
-// export const strapiUrl = "http:///localhost:1337"
-export const strapiUrl = "https://strapi.orchidcompany.com";
-
 export const callAxios = async (method, route, body) => {
   const token = localStorage.getItem("token");
   if (method === "get") {

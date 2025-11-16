@@ -9,6 +9,7 @@ const nextConfig = {
             "strapi.orchidcompany.com",
             "i.postimg.cc",
             "localhost",
+            'orchid-assets1.s3.ap-south-1.amazonaws.com'
             // Add more domains if needed
         ],
     },

@@ -1,5 +1,3 @@
-import React from "react";
-import { backendUrl, strapiUrl } from "@/utils/axios";
 import BlogsList from "@/components/Blogs/BlogsList";
 
 
