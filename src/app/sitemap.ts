@@ -2,18 +2,20 @@ import { MetadataRoute } from "next";
 import { backendUrl, frontendUrl } from "@/utils/axios";
 import { safeFetchJson } from "@/lib/safeFetch";
 
+type SitemapEntry = MetadataRoute.Sitemap[number];
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  return [
+  const staticEntries: SitemapEntry[] = [
     {
       url: `${frontendUrl}/`,
       lastModified: new Date().toISOString(),
-      changeFrequency: "never",
+      changeFrequency: "never" as const,
       priority: 1,
     },
     {
       url: `${frontendUrl}/about-us`,
       lastModified: new Date().toISOString(),
-      changeFrequency: "never",
+      changeFrequency: "never" as const,
       priority: 0.9,
     },
     // {
@@ -34,17 +36,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     //   changefreq: "never",
     //   priority: 0.9,
     // },
-    // {
-    //   loc: `${frontendUrl}/blog`,
-    //   lastmod: new Date().toISOString(),
-    //   changefreq: "never",
-    //   priority: 0.9,
-    // },
-    ...(await generateSitemapObjects()).map((sitemapObject) => sitemapObject),
   ];
+
+  const dynamicEntries = await generateSitemapObjects();
+
+  return [...staticEntries, ...dynamicEntries];
 }
 
-const generateSitemapObjects = async () => {
+const generateSitemapObjects = async (): Promise<SitemapEntry[]> => {
   try {
     const { data: categoryData, response: categoryResponse } =
       await safeFetchJson<{ categories?: Array<{ slug: string }> }>(
@@ -69,23 +68,23 @@ const generateSitemapObjects = async () => {
     const categories = categoryData?.categories ?? [];
     const services = serviceData?.services ?? [];
 
-    const categorySitemap = categories.map((category: any) => {
-      return {
+    const categorySitemap: SitemapEntry[] = categories
+      .filter((category) => category?.slug)
+      .map((category) => ({
         url: `${frontendUrl}/category/${category.slug}`,
         lastModified: new Date().toISOString(),
-        changeFrequency: "daily",
+        changeFrequency: "daily" as const,
         priority: 0.8,
-      };
-    });
+      }));
 
-    const serviceSitemap = services.map((service: any) => {
-      return {
+    const serviceSitemap: SitemapEntry[] = services
+      .filter((service) => service?.slug)
+      .map((service) => ({
         url: `${frontendUrl}/service/${service.slug}`,
         lastModified: new Date().toISOString(),
-        changeFrequency: "daily",
+        changeFrequency: "daily" as const,
         priority: 0.8,
-      };
-    });
+      }));
 
     // console.log(categorySitemap, serviceSitemap);
 
